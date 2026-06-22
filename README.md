@@ -212,6 +212,45 @@ npm start
 4. Click "Meta Veriyi Güncelle"
 5. Changes will be recorded on-chain
 
+## User Experience
+
+### Wallet Connected State
+
+When you successfully connect your wallet, the interface displays:
+- Your public Stellar address (truncated for readability)
+- A green indicator showing connection status
+- Option to copy your address to clipboard
+- Disconnect button to end the session
+- Link to view your account on Stellar Expert
+
+### Balance Displayed
+
+The dashboard shows your account balance in real-time:
+- XLM balance with up to 7 decimal places
+- USD estimation based on current market rates
+- Other custom assets held in your wallet
+- Refresh button to update balance manually
+- Loading states during balance queries
+
+### Successful Testnet Transaction
+
+When you complete a transaction on the Stellar Testnet:
+- Transaction is submitted to the network
+- Confirmation appears in 3-5 seconds
+- Transaction hash is generated and displayed
+- Success notification appears with confirmation details
+- Transaction is added to your history
+
+### Transaction Result Shown to the User
+
+After a transaction completes, the interface displays:
+- Transaction hash (clickable to copy)
+- Success confirmation message
+- Link to view transaction on Stellar Expert
+- Transaction type indicator (payment, asset transfer, etc.)
+- Timestamp of the transaction
+- Updated balance reflecting the transaction
+
 ## Security Considerations
 
 - **Testnet Only**: This application currently operates on Stellar Testnet
