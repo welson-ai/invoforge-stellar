@@ -8,6 +8,7 @@
 'use client';
 
 import { useState } from 'react';
+import { registerProject, updateProject, type TransactionResult } from '@/lib/contract';
 
 // DIKKAT: Bu importlar muhtemelen sizin projenizdeki /components klasöründen geliyor.
 // Bu kısımların varlığını korumak zorundayız, aksi takdirde kod çalışmaz.
@@ -31,21 +32,39 @@ interface ProjectCreatorProps {
 const ProjectCreator: React.FC<ProjectCreatorProps> = ({ publicKey }) => {
   const [assetCode, setAssetCode] = useState('');
   const [projectUrl, setProjectUrl] = useState('');
+  const [licenseType, setLicenseType] = useState('MIT');
+  const [royaltyPercentage, setRoyaltyPercentage] = useState('5');
+  const [metadata, setMetadata] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [transactionResult, setTransactionResult] = useState<TransactionResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setStatus('idle');
+    setError(null);
+    setTransactionResult(null);
     
-    // ARKA PLAN SIMÜLASYONU
-    console.log("Yeni Proje (Asset) oluşturuluyor...", { assetCode, projectUrl, creator: publicKey });
-
-    setTimeout(() => {
-        setIsLoading(false);
-        setStatus('success'); 
-    }, 2000);
+    try {
+      const result = await registerProject(
+        publicKey,
+        assetCode,
+        publicKey,
+        projectUrl,
+        licenseType,
+        parseInt(royaltyPercentage),
+        metadata
+      );
+      setTransactionResult(result);
+      setStatus('success');
+    } catch (err) {
+      setError((err as Error).message);
+      setStatus('error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -85,6 +104,57 @@ const ProjectCreator: React.FC<ProjectCreatorProps> = ({ publicKey }) => {
             className="w-full p-3 bg-white border border-primary-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
+
+        <div>
+          <label htmlFor="licenseType" className="block text-sm font-medium text-gray-700 mb-2">
+            Lisans Türü
+          </label>
+          <select
+            id="licenseType"
+            value={licenseType}
+            onChange={(e) => setLicenseType(e.target.value)}
+            required
+            className="w-full p-3 bg-white border border-primary-300 rounded-lg text-gray-900 focus:ring-primary-500 focus:border-primary-500"
+          >
+            <option value="MIT">MIT</option>
+            <option value="Apache-2.0">Apache-2.0</option>
+            <option value="GPL-3.0">GPL-3.0</option>
+            <option value="BSD-3-Clause">BSD-3-Clause</option>
+            <option value="Proprietary">Proprietary</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="royaltyPercentage" className="block text-sm font-medium text-gray-700 mb-2">
+            Telif Oranı (%)
+          </label>
+          <input
+            id="royaltyPercentage"
+            type="number"
+            value={royaltyPercentage}
+            onChange={(e) => setRoyaltyPercentage(e.target.value)}
+            required
+            min="0"
+            max="100"
+            placeholder="5"
+            className="w-full p-3 bg-white border border-primary-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="metadata" className="block text-sm font-medium text-gray-700 mb-2">
+            Proje Açıklaması (Metadata)
+          </label>
+          <textarea
+            id="metadata"
+            value={metadata}
+            onChange={(e) => setMetadata(e.target.value)}
+            rows={3}
+            required
+            placeholder="Projenizi kısaca açıklayın..."
+            className="w-full p-3 bg-white border border-primary-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-primary-500 focus:border-primary-500"
+          />
+        </div>
         
         <div className='bg-primary-50/50 p-3 rounded-lg border border-primary-300/50'>
             <p className='text-sm text-primary-700'>Not: Mülkiyet tokenı olarak, arzı **1 adet** olarak belirlenir. Bu token transferi, projenin tüm sahipliğini aktarır.</p>
@@ -103,9 +173,25 @@ const ProjectCreator: React.FC<ProjectCreatorProps> = ({ publicKey }) => {
         </button>
       </form>
 
-      {status === 'success' && (
+      {status === 'success' && transactionResult && (
         <div className="mt-4 p-4 bg-success-100 text-success-700 rounded-lg border border-success-300/50">
-          Proje Tokenı Başarıyla Oluşturuldu!
+          <p className="font-semibold mb-2">Proje Tokenı Başarıyla Oluşturuldu!</p>
+          <p className="text-sm mb-2">Transaction Status: {transactionResult.status}</p>
+          <a 
+            href={transactionResult.explorerUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-sm font-medium underline hover:text-success-900"
+          >
+            View Transaction on Stellar Expert →
+          </a>
+        </div>
+      )}
+
+      {status === 'error' && error && (
+        <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg border border-red-300/50">
+          <p className="font-semibold mb-1">Hata Oluştu</p>
+          <p className="text-sm">{error}</p>
         </div>
       )}
     </div>
@@ -119,24 +205,37 @@ interface ProjectManagerProps {
 }
 
 const ProjectManager: React.FC<ProjectManagerProps> = ({ publicKey }) => {
-    const [assetCode, setAssetCode] = useState('');
+    const [projectId, setProjectId] = useState('');
     const [newVersion, setNewVersion] = useState('');
-    const [newDescription, setNewDescription] = useState('');
+    const [newMetadata, setNewMetadata] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [transactionResult, setTransactionResult] = useState<TransactionResult | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setStatus('idle');
+        setError(null);
+        setTransactionResult(null);
         
-        // ARKA PLAN SIMÜLASYONU
-        console.log("Proje meta verisi güncelleniyor...", { assetCode, newVersion, newDescription, issuer: publicKey });
-
-        setTimeout(() => {
+        try {
+            const result = await updateProject(
+                publicKey,
+                parseInt(projectId),
+                publicKey,
+                newVersion || undefined,
+                newMetadata || undefined
+            );
+            setTransactionResult(result);
+            setStatus('success');
+        } catch (err) {
+            setError((err as Error).message);
+            setStatus('error');
+        } finally {
             setIsLoading(false);
-            setStatus('success'); 
-        }, 2000);
+        }
     };
 
     return (
@@ -148,45 +247,43 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ publicKey }) => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                    <label htmlFor="assetCode" className="block text-sm font-medium text-gray-700 mb-2">
-                        Güncellenecek Proje Kodu (Asset Code)
+                    <label htmlFor="projectId" className="block text-sm font-medium text-gray-700 mb-2">
+                        Proje ID
                     </label>
                     <input
-                        id="assetCode"
-                        type="text"
-                        value={assetCode}
-                        onChange={(e) => setAssetCode(e.target.value.toUpperCase())}
+                        id="projectId"
+                        type="number"
+                        value={projectId}
+                        onChange={(e) => setProjectId(e.target.value)}
                         required
-                        placeholder="MEVCUT_PROJE"
+                        placeholder="1"
                         className="w-full p-3 bg-white border border-secondary-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-secondary-500 focus:border-secondary-500"
                     />
                 </div>
 
                 <div>
                     <label htmlFor="newVersion" className="block text-sm font-medium text-gray-700 mb-2">
-                        Yeni Sürüm (Versiyon) Numarası
+                        Yeni Sürüm (Versiyon) Numarası (Opsiyonel)
                     </label>
                     <input
                         id="newVersion"
                         type="text"
                         value={newVersion}
                         onChange={(e) => setNewVersion(e.target.value)}
-                        required
                         placeholder="v2.0.1"
                         className="w-full p-3 bg-white border border-secondary-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-secondary-500 focus:border-secondary-500"
                     />
                 </div>
 
                 <div>
-                    <label htmlFor="newDescription" className="block text-sm font-medium text-gray-700 mb-2">
-                        Güncelleme Notları / Açıklama
+                    <label htmlFor="newMetadata" className="block text-sm font-medium text-gray-700 mb-2">
+                        Güncelleme Notları / Açıklama (Opsiyonel)
                     </label>
                     <textarea
-                        id="newDescription"
-                        value={newDescription}
-                        onChange={(e) => setNewDescription(e.target.value)}
+                        id="newMetadata"
+                        value={newMetadata}
+                        onChange={(e) => setNewMetadata(e.target.value)}
                         rows={3}
-                        required
                         placeholder="Önemli hata düzeltmeleri ve yeni API entegrasyonu yapıldı."
                         className="w-full p-3 bg-white border border-secondary-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-secondary-500 focus:border-secondary-500"
                     />
@@ -205,9 +302,25 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ publicKey }) => {
                 </button>
             </form>
 
-            {status === 'success' && (
+            {status === 'success' && transactionResult && (
                 <div className="mt-4 p-4 bg-success-100 text-success-700 rounded-lg border border-success-300/50">
-                    Proje Meta Verisi Başarıyla Güncellendi!
+                    <p className="font-semibold mb-2">Proje Meta Verisi Başarıyla Güncellendi!</p>
+                    <p className="text-sm mb-2">Transaction Status: {transactionResult.status}</p>
+                    <a 
+                        href={transactionResult.explorerUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium underline hover:text-success-900"
+                    >
+                        View Transaction on Stellar Expert →
+                    </a>
+                </div>
+            )}
+
+            {status === 'error' && error && (
+                <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg border border-red-300/50">
+                    <p className="font-semibold mb-1">Hata Oluştu</p>
+                    <p className="text-sm">{error}</p>
                 </div>
             )}
         </div>

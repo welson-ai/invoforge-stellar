@@ -11,7 +11,7 @@ const server = new StellarSdk.SorobanRpc.Server(RPC_URL, {
 });
 
 // Types
-interface TransactionResult {
+export interface TransactionResult {
   txHash: string;
   explorerUrl: string;
   status: string;
