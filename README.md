@@ -1,5 +1,36 @@
 # Invoforge - Tokenized Code Ownership Platform
 
+## Submission Requirements - Belt 1, 2 and Belt 3
+#### demo video
+https://www.veed.io/view/e620ffa7-b4eb-49e4-9991-f6cf675dc8a9?source=editor&panel=share
+#### Contract deployment address
+CDNONWHGE3D4UI77E6SXDNHYNIA6R4BHNP67X3FIWVTBSIM4HYX25K5G
+#### Transaction hash for contract interaction
+8d112cb9dd05678a3381ad3337f3f34069ade49e787555d9fbef3948cec7a144
+#### Live demo link
+https://bstellar-pay.vercel.app/
+#### wallet connected state and balance displayed
+![Wallet Setup](public/scr1.png)
+#### successful testnet transaction
+![Wallet Setup](public/scr2.png)
+#### result shown to user
+![Wallet Setup](public/scr3.png)
+
+#### Screenshot: wallet options available
+![Wallet Setup](public/scr4.png)
+
+#### Mobile responsive UI
+
+![Funding Testnets](public/scr5.png)
+
+#### CI/CD pipeline running
+
+![Funding Testnets](public/scr6.png)
+
+#### Test output with 3+ passing tests
+
+![Funding Testnets](public/scr7.png)
+
 A modern, vibrant platform for tokenized code ownership on the Stellar blockchain. Invoforge enables developers to tokenize their projects as Stellar assets, manage ownership transfers, and track transaction history with a beautiful, bright UI.
 
 ## Features
