@@ -8,7 +8,7 @@ CDNONWHGE3D4UI77E6SXDNHYNIA6R4BHNP67X3FIWVTBSIM4HYX25K5G
 #### Transaction hash for contract interaction
 8d112cb9dd05678a3381ad3337f3f34069ade49e787555d9fbef3948cec7a144
 #### Live demo link
-https://bstellar-pay.vercel.app/
+https://invoforge-stellar.vercel.app
 #### wallet connected state and balance displayed
 ![Wallet Setup](public/scr1.png)
 #### successful testnet transaction
