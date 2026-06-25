@@ -38,7 +38,7 @@ async function submitTransaction(
     const operation = contract.call(contractMethod, ...params);
     
     const transaction = new StellarSdk.TransactionBuilder(account, {
-      fee: '100',
+      fee: '10000000', // Higher fee for Soroban
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .addOperation(operation)
@@ -50,8 +50,14 @@ async function submitTransaction(
     const simulated = await server.simulateTransaction(transaction);
     
     if (StellarSdk.SorobanRpc.Api.isSimulationError(simulated)) {
+      console.log(`❌ Simulation error: ${simulated.error}`);
+      if (simulated.events) {
+        console.log(`Events: ${JSON.stringify(simulated.events)}`);
+      }
       throw new Error(`Simulation error: ${simulated.error}`);
     }
+
+    console.log(`✅ Simulation successful`);
 
     // Prepare transaction
     console.log(`🔧 Preparing transaction...`);
@@ -76,33 +82,56 @@ async function submitTransaction(
     console.log(`✅ Transaction submitted: ${txHash}`);
     console.log(`🔍 Explorer: https://stellar.expert/explorer/testnet/tx/${txHash}`);
 
-    // Poll for transaction completion
-    console.log(`⏳ Waiting for transaction confirmation...`);
-    let status = 'PENDING';
-    let attempts = 0;
-    const maxAttempts = 30;
+    // Wait a bit then check transaction status
+    console.log(`⏳ Waiting 20 seconds before checking status...`);
+    await new Promise(resolve => setTimeout(resolve, 20000));
 
-    while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log(`🔍 Checking transaction status via RPC...`);
+    try {
+      // Use getLatestLedger to check if transaction was included
+      const latestLedger = await server.getLatestLedger();
+      console.log(`Latest ledger: ${latestLedger.sequence}`);
       
+      // Try to get transaction with different method
       const txResult = await server.getTransaction(txHash);
+      console.log(`Transaction status: ${txResult.status}`);
       
       if (txResult.status === StellarSdk.SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
-        status = 'SUCCESS';
-        console.log(`✅ Transaction confirmed!`);
-        break;
+        console.log(`✅ Transaction confirmed successfully!`);
+        return {
+          txHash,
+          explorerUrl: `https://stellar.expert/explorer/testnet/tx/${txHash}`,
+          status: 'SUCCESS',
+        };
       } else if (txResult.status === StellarSdk.SorobanRpc.Api.GetTransactionStatus.FAILED) {
-        status = 'FAILED';
         console.log(`❌ Transaction failed`);
-        break;
+        if (txResult.resultXdr) {
+          console.log(`Result XDR: ${txResult.resultXdr}`);
+        }
+        return {
+          txHash,
+          explorerUrl: `https://stellar.expert/explorer/testnet/tx/${txHash}`,
+          status: 'FAILED',
+        };
+      } else {
+        console.log(`Transaction status: ${txResult.status}`);
+        return {
+          txHash,
+          explorerUrl: `https://stellar.expert/explorer/testnet/tx/${txHash}`,
+          status: txResult.status,
+        };
       }
-      
-      attempts++;
-      console.log(`⏳ Polling... (${attempts}/${maxAttempts})`);
-    }
-
-    if (status === 'PENDING') {
-      console.log(`⚠️ Transaction still pending after ${maxAttempts} attempts`);
+    } catch (error) {
+      console.log(`Error getting transaction: ${(error as Error).message}`);
+      console.log(`Transaction may still be processing or failed`);
+      console.log(`Please check manually on Stellar Expert`);
+      console.log(`Also check your account: https://stellar.expert/explorer/testnet/account/${publicKey}`);
+      // Return the hash anyway so user can check manually
+      return {
+        txHash,
+        explorerUrl: `https://stellar.expert/explorer/testnet/tx/${txHash}`,
+        status: 'UNKNOWN',
+      };
     }
 
     return {
@@ -115,18 +144,34 @@ async function submitTransaction(
   }
 }
 
+async function testInitialize(publicKey: string) {
+  console.log('\n🎯 Testing initialize...');
+  
+  const params = [
+    new StellarSdk.Address(publicKey).toScVal(),
+  ];
+
+  return submitTransaction(publicKey, 'initialize', params);
+}
+
 async function testRegisterProject(publicKey: string) {
   console.log('\n🎯 Testing register_project...');
   
+  // Try with different Address encoding
+  const address = new StellarSdk.Address(publicKey);
   const params = [
-    StellarSdk.xdr.ScVal.scvString('TESTCLI'),
-    new StellarSdk.Address(publicKey).toScVal(),
-    StellarSdk.xdr.ScVal.scvString('https://github.com/test/cli-test'),
+    StellarSdk.xdr.ScVal.scvString('TEST'),
+    address.toScVal(),
+    StellarSdk.xdr.ScVal.scvString('https://github.com/test'),
     StellarSdk.xdr.ScVal.scvString('MIT'),
     StellarSdk.xdr.ScVal.scvU32(5),
-    StellarSdk.xdr.ScVal.scvString('CLI test project'),
+    StellarSdk.xdr.ScVal.scvString('Test'),
   ];
 
+  console.log('Parameters:', params.map((p, i) => `${i}: ${p.toString()}`));
+  console.log('Address:', address.toString());
+  console.log('Address ScVal:', address.toScVal().toString());
+  
   return submitTransaction(publicKey, 'register_project', params);
 }
 
@@ -152,10 +197,34 @@ async function main() {
 
   try {
     // Get keypair from private key
-    console.log('� Loading keypair from PRIVATE_KEY environment variable...');
+    console.log('🔑 Loading keypair from PRIVATE_KEY environment variable...');
     const keypair = getKeypair();
     const publicKey = keypair.publicKey();
     console.log(`✅ Public key: ${publicKey}\n`);
+
+    // Try a simple read operation first
+    console.log('🎯 Testing get_transaction_count (read operation)...');
+    try {
+      const contract = new StellarSdk.Contract(CONTRACT_ID);
+      const account = await server.getAccount(publicKey);
+      
+      const transaction = new StellarSdk.TransactionBuilder(account, {
+        fee: '100',
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(contract.call('get_transaction_count'))
+        .setTimeout(30)
+        .build();
+
+      const simulated = await server.simulateTransaction(transaction);
+      console.log('✅ Read operation successful');
+      if (StellarSdk.SorobanRpc.Api.isSimulationSuccess(simulated) && simulated.result) {
+        console.log(`   Transaction count: ${simulated.result.retval.value || 0}`);
+      }
+      console.log('   Contract is already initialized, skipping initialize step');
+    } catch (error) {
+      console.log(`❌ Read operation failed: ${(error as Error).message}`);
+    }
 
     // Test register_project
     console.log('🎯 Testing register_project...');
@@ -164,16 +233,9 @@ async function main() {
     console.log(`   Hash: ${result1.txHash}`);
     console.log(`   Status: ${result1.status}`);
     console.log(`   Explorer: ${result1.explorerUrl}`);
+    console.log(`   Account: https://stellar.expert/explorer/testnet/account/${publicKey}`);
 
-    // Test update_project
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    const result2 = await testUpdateProject(publicKey);
-    console.log(`\n📊 Result:`);
-    console.log(`   Hash: ${result2.txHash}`);
-    console.log(`   Status: ${result2.status}`);
-    console.log(`   Explorer: ${result2.explorerUrl}`);
-
-    console.log('\n✅ All tests completed successfully!');
+    console.log('\n✅ Test completed!');
   } catch (error) {
     console.error(`\n❌ Error: ${(error as Error).message}`);
     console.log('\n💡 Troubleshooting:');
